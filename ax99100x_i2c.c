@@ -3,6 +3,7 @@
  * PCI-I2C Driver for ax99100 multi-interface device
  */
 
+#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/module.h>
@@ -178,7 +179,11 @@ static int ax99100_i2c_init(struct ax99100_data *ax)
 	int ret;
 
 	snprintf(adapter->name, sizeof(adapter->name), "ax99100_i2c");
-	adapter->class = I2C_CLASS_HWMON | I2C_CLASS_SPD;
+	adapter->class = I2C_CLASS_HWMON
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,0,0)
+	 | I2C_CLASS_SPD
+#endif
+	;
 	adapter->algo = &ax99100_i2c_algo;
 	adapter->algo_data = ax;
 	adapter->dev.parent = &pdev->dev;
@@ -206,7 +211,7 @@ static void ax99100_i2c_clear(struct ax99100_data *ax)
 /*
  * ax99100 PCI general driver
  *
- * This driver supports the i2c interface only. 
+ * This driver supports the i2c interface only.
  */
 static struct ax99100_data *ax99100_data_create(struct pci_dev *pdev)
 {
@@ -253,7 +258,13 @@ static int ax99100_pci_init(struct ax99100_data *ax)
 
 	pci_set_drvdata(pdev, ax);
 
-	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI | PCI_IRQ_LEGACY);
+	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_MSI
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
+		| PCI_IRQ_LEGACY
+#else
+		| PCI_IRQ_INTX
+#endif
+	);
 	if (ret != 1) {
 		dev_err(&pdev->dev, "Failed to alloc INTx IRQ vector\n");
 		goto err_clear_drvdata;

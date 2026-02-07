@@ -7,10 +7,10 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This code is modified to support AX99100 series serial devices
  */
- 
+
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,15)
@@ -61,11 +61,11 @@
 static char version[] =
 KERN_INFO "ASIX AX99100 PCIe Bridg to Serial Port " DRV_VERSION
 	"    http://www.asix.com.tw\n";
-	
+
 static char versionA[] =
 KERN_INFO "ASIX AX99100A PCIe Bridg to Serial Port " DRV_VERSION
 	"    http://www.asix.com.tw\n";
-	
+
 //All transactions are with memory mapped registers
 #define MEM_AXS 1
 
@@ -155,7 +155,7 @@ KERN_INFO "ASIX AX99100A PCIe Bridg to Serial Port " DRV_VERSION
 
 
 
-					
+
 int gpio_mode = 3; //4 serial port mode
 
 int suspend_count = 0;
@@ -182,25 +182,25 @@ struct uart_99100_port {
 	unsigned int 		dma_rx;				//RX DMA enable or not
 	u8			ier; 				//Interrupt Enable Register
 	u8 			lcr;				//Line Control Register
-	u8			mcr;				//Modem Control Register 
+	u8			mcr;				//Modem Control Register
 	u8 			acr;				//Additional Control Register
 	u8			fcr;				//FIFO Control Register
 	int			gier;				//Global Interrupt Enable Register
 	unsigned int		capabilities;			//port capabilities
-	int			rxfifotrigger;		
+	int			rxfifotrigger;
 	int 			txfifotrigger;
 	u32			dma_tx_cnt;			//Amount of data to be DMA in TX
 	u32			dma_rx_cnt;			//Amount of data to be DMA in RX
 	int			first_tx_dma;
-	int			pre_need2recv_cnt;		
+	int			pre_need2recv_cnt;
 	char 	*		dma_tx_buf_v;			//Virtual Address of DMA Buffer for TX
 	dma_addr_t 		dma_tx_buf_p;			//Physical Address of DMA Buffer for TX
-	char 	*		dma_tx_buf_v_start;		//Virtual Address of DMA Buffer for Strat TX 
+	char 	*		dma_tx_buf_v_start;		//Virtual Address of DMA Buffer for Strat TX
 	dma_addr_t 		dma_tx_buf_p_start;		//Physical Address of DMA Buffer for Start TX
 	char	*		dma_rx_buf_v;			//Virtual Address of DMA Buffer for RX
 	dma_addr_t		dma_rx_buf_p;			//Physical Address of DMA Buffer for TX
 	u32			part_done_recv_cnt;		//RX DMA CIRC buffer Read index
-	int 			rx_dma_done_cnt;	
+	int 			rx_dma_done_cnt;
 	int			uart_mode;			//SERIAL TYPE
 	int			flow_control;			//Flow control is enabled or not
 	int			flow_ctrl_type;			//Type of Flow control
@@ -228,11 +228,11 @@ struct uart_99100_port {
 	int 			ltc2872_dz;
 	int 			ltc2872_lb;
 	int 			ltc2872_fen;
-	
+
 	u32			dma_delay_timeout;
 	u32			boundary_check;
 	u32			old_spssr2;
-	
+
 	struct tasklet_struct	tasklet_dma_rx;
 	struct tasklet_struct	tasklet_dma_tx;
 	int			k_gir; /* used in rx_kevent */
@@ -249,23 +249,23 @@ struct uart_99100_port {
 static struct uart_99100_port serial99100_ports[UART99100_NR];
 
 struct uart_99100_contxt {
-	int rx_dma_en;		
+	int rx_dma_en;
 				//0 -I/O mode of RX
 				//1 -DMA mode of RX
-	int tx_dma_en;		
-				//0 -I/O mode of TX 
+	int tx_dma_en;
+				//0 -I/O mode of TX
 				//1 -DMA mode of TX
-	int uart_mode;		
+	int uart_mode;
 				//AX99100_RS232_MODE
 				//AX99100_RS422_MODE
 				//AX99100_RS485_HALF_DUPLEX
 				//AX99100_RS485_HALF_DUPLEX_ECHO
 				//AX99100_RS485_FULL_DUPLEX
 				//AX99100_RS485_FULL_DUPLEX_TXEN
-	int en_flow_control;  
-				//0 -No H/W Flow Control	 
+	int en_flow_control;
+				//0 -No H/W Flow Control
 				//1 -H/W Flow Control
-	int flow_ctrl_type;	
+	int flow_ctrl_type;
 				//AX99100_DTR_DSR_HW_FLOWCONTROL
 				//AX99100_XON_XOFF_HW_FLOWCONTROL
 				//AX99100_RTS_CTS_HW_FLOWCONTROL
@@ -278,7 +278,7 @@ struct uart_99100_contxt {
 	int ltc2872_te485;	//0 -open
 				//1 -enable 120Ohm TX termination
 	int ltc2872_dz;		//0 -open
-				//1 -enable 120Ohm RX termination 
+				//1 -enable 120Ohm RX termination
 	int ltc2872_lb;		//0 -disable loopback
 				//1 -enable loopback
 	int ltc2872_fen;	//0 -disable fast mode
@@ -303,7 +303,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 1,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 240,
-		.txfifotrigger	= 240,		
+		.txfifotrigger	= 240,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -324,7 +324,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 1,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger  = 240,
-		.txfifotrigger  = 240,		
+		.txfifotrigger  = 240,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -335,7 +335,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.pci_config_l0s	= 0,
 		.pci_config_l1 	= 0,
 		.mode_9bit	= MODE_9BIT_DISABLE,
-		.nodeID_9bit	= 0,		
+		.nodeID_9bit	= 0,
 	},
 	//Port 2
 	{
@@ -345,7 +345,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 1,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger  = 240,
-		.txfifotrigger  = 240,		
+		.txfifotrigger  = 240,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -356,7 +356,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.pci_config_l0s	= 0,
 		.pci_config_l1 	= 0,
 		.mode_9bit	= MODE_9BIT_DISABLE,
-		.nodeID_9bit	= 0,	
+		.nodeID_9bit	= 0,
 	},
 	//Port 3
 	{
@@ -366,7 +366,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 1,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 240,
-		.txfifotrigger	= 240,		
+		.txfifotrigger	= 240,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -387,7 +387,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -408,7 +408,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -429,7 +429,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -450,7 +450,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -471,7 +471,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -483,7 +483,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.pci_config_l1 	= 0,
 		.mode_9bit	= MODE_9BIT_DISABLE,
 		.nodeID_9bit	= 0,
-	},			
+	},
 	//Port 9
 	{
 		.rx_dma_en	= 0,
@@ -492,7 +492,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -504,7 +504,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.pci_config_l1 	= 0,
 		.mode_9bit	= MODE_9BIT_DISABLE,
 		.nodeID_9bit	= 0,
-	},		
+	},
 	//Port 10
 	{
 		.rx_dma_en	= 0,
@@ -513,7 +513,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -525,7 +525,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.pci_config_l1 	= 0,
 		.mode_9bit	= MODE_9BIT_DISABLE,
 		.nodeID_9bit	= 0,
-	},	
+	},
 	//Port 11
 	{
 		.rx_dma_en	= 0,
@@ -534,7 +534,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -555,7 +555,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -576,7 +576,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -597,7 +597,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -609,7 +609,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.pci_config_l1 	= 0,
 		.mode_9bit	= MODE_9BIT_DISABLE,
 		.nodeID_9bit	= 0,
-	},	
+	},
 	//Port 15
 	{
 		.rx_dma_en	= 0,
@@ -618,7 +618,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.en_flow_control= 0,
 		.flow_ctrl_type = AX99100_RTS_CTS_HW_FLOWCONTROL,
 		.rxfifotrigger	= 1,
-		.txfifotrigger	= 1,		
+		.txfifotrigger	= 1,
 		.x_on		= SERIAL_DEF_XON,
 		.x_off		= SERIAL_DEF_XOFF,
 
@@ -630,7 +630,7 @@ static struct uart_99100_contxt uart_99100_contxts[] = {
 		.pci_config_l1 	= 0,
 		.mode_9bit	= MODE_9BIT_DISABLE,
 		.nodeID_9bit	= 0,
-	},	
+	},
 };
 
 /*
@@ -726,7 +726,7 @@ static void serial_icr_write(struct uart_99100_port *up, int offset, int value)
 static unsigned int serial_icr_read(struct uart_99100_port *up, int offset)
 {
 	unsigned int value;
-		
+
 	serial_icr_write(up, UART_ACR, up->acr | UART_ACR_ICRRD);
 
 	serial_out(up, UART_SCR, offset);
@@ -755,25 +755,25 @@ static void serial_efrs_write(struct uart_99100_port *up, int offset, u8 bit_mas
     serial_out(up, offset, value);
 
     /* Restore LCR and disable access */
-	serial_out(up, UART_LCR, lcr);	
+	serial_out(up, UART_LCR, lcr);
 }
 
 //Helper function to read enhanced feature registers
 static u8 serial_efrs_read(struct uart_99100_port *up, int offset)
 {
 	u8 value, lcr;
-		
+
     /* Save LCR */
 	lcr = serial_in(up, UART_LCR);
 
     /* Enable access */
-	serial_out(up, UART_LCR, 0xBF);	
+	serial_out(up, UART_LCR, 0xBF);
 
     /* Read value */
 	value = serial_in(up, offset);
 
     /* Restore LCR and disable access */
-	serial_out(up, UART_LCR, lcr);	
+	serial_out(up, UART_LCR, lcr);
 
 	return value;
 }
@@ -782,36 +782,36 @@ static u8 serial_efrs_read(struct uart_99100_port *up, int offset)
 static void serial_dlrs_write(struct uart_99100_port *up, int offset, u8 value)
 {
 	u8 lcr;
-		
+
     /* Save LCR */
 	lcr = serial_in(up, UART_LCR);
 
     /* Enable access */
-	serial_out(up, UART_LCR, lcr | UART_LCR_DLAB);	
+	serial_out(up, UART_LCR, lcr | UART_LCR_DLAB);
 
     /* Write masked value */
     serial_out(up, offset, value);
 
     /* Restore LCR and disable access */
-	serial_out(up, UART_LCR, lcr);	
+	serial_out(up, UART_LCR, lcr);
 }
 
 //Helper function to read Divisor Latch registers
 static u8 serial_dlrs_read(struct uart_99100_port *up, int offset)
 {
 	u8 value, lcr;
-		
+
     /* Save LCR */
 	lcr = serial_in(up, UART_LCR);
 
     /* Enable access */
-	serial_out(up, UART_LCR, lcr | UART_LCR_DLAB);	
+	serial_out(up, UART_LCR, lcr | UART_LCR_DLAB);
 
     /* Read value */
 	value = serial_in(up, offset);
 
     /* Restore LCR and disable access */
-	serial_out(up, UART_LCR, lcr);	
+	serial_out(up, UART_LCR, lcr);
 
 	return value;
 }
@@ -841,7 +841,7 @@ static void serial_mcr_write(struct uart_99100_port *up, u8 bit_mask, u8 bit_val
 		           | ((mcr & UART_MCR_RTS) ? TIOCM_RTS : 0)
 		           | ((mcr & UART_MCR_LOOP) ? TIOCM_LOOP : 0);
 
-	spin_unlock_irqrestore(&up->lock_99100, flags);    
+	spin_unlock_irqrestore(&up->lock_99100, flags);
 }
 
 // Helper function to clear the FIFO
@@ -879,7 +879,7 @@ static void serial99100_stop_tx(struct uart_port *port)
 #endif
 {
 	struct uart_99100_port *up = &serial99100_ports[port->line];
-	u32	value=0;	
+	u32	value=0;
 	DEBUG("In %s ---------------------------------------START\n",__FUNCTION__);
 
 	if(up->dma_tx){
@@ -906,44 +906,52 @@ static void serial99100_start_tx(struct uart_port *port)
 	struct uart_99100_port *up = &serial99100_ports[port->line];
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
 	struct circ_buf *xmit = &up->port.info->xmit;
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,10)
 	struct circ_buf *xmit = &up->port.state->xmit;
+#else
+	struct tty_port *tport = &up->port.state->port;
 #endif
 	u32	length=0,len2end,txdma_status=0;
 	int tail,head,tobe_transferred;
 	unsigned long flags;
-	
+
 	D_T_DEBUG("In %s ---------0x%x\n",__FUNCTION__,readl(up->port.membase+REG_TX_DMA_STATUS));
 	TX_DEBUG("In %s ---------------------------------------START\n",__FUNCTION__);
-	
+
 	if (up->first_tx_dma == 1) {
 		txdma_status = 1;
 		up->first_tx_dma = 0;
 	} else
 		txdma_status = readl(up->port.membase+REG_TX_DMA_STATUS);
-	
+
 	D_T_DEBUG("In %s ---------0x%x\n",__FUNCTION__,txdma_status);
 	tobe_transferred=readl(up->port.membase+REG_TX_BYTES_TRANSFERRED);
 	DMATX_DEBUG("In %s -------------tobe_transferred=%d--------------------------START\n",__FUNCTION__,tobe_transferred);
-	
-	if(up->dma_tx && ((txdma_status & 0x01) == 1) && up->serialise_txdma == 0){	  
-		
+
+	if(up->dma_tx && ((txdma_status & 0x01) == 1) && up->serialise_txdma == 0){
+
 		TX_DEBUG(" I WAS IN DMA OF START_TX\n");
 
 		//CALCULATING THE AMOUNT OF DATA AVAILABLE FOR THE NEXT TRANSFER
 		//AND COPYING THE DATA TO THE DMA BUFFER
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,10)
 		length = uart_circ_chars_pending(xmit);
+#else
+		length = kfifo_len(&tport->xmit_fifo);
+#endif
 
 		if (length == 0) {
 			TX_DEBUG("In %s TX length = 0\n",__FUNCTION__);
 			return;
 		}
 
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,10)
 		head=xmit->head;
 		tail=xmit->tail;
 		len2end = CIRC_CNT_TO_END(head, tail, UART_XMIT_SIZE); //size 4096
-		TX_DEBUG("In %s -------------------xmit->tail=%d, xmit->head=%d,length=%d,length2end=%d\n",__FUNCTION__,tail,head,length,len2end);			
-				
+		TX_DEBUG("In %s -------------------xmit->tail=%d, xmit->head=%d,length=%d,length2end=%d\n",__FUNCTION__,tail,head,length,len2end);
+
 		if(tail < head){
 			if(length <= DMA_TX_BUFFER_SZ){
 				TX_DEBUG("In %s normal circ buffer\n",__FUNCTION__);
@@ -974,22 +982,26 @@ static void serial99100_start_tx(struct uart_port *port)
 					up->dma_tx_cnt = DMA_TX_BUFFER_SZ;
 				}
 			}
-		}		
+		}
 
 		DMATX_DEBUG("In %s -------------xmit->tail=%d--------------------------START\n",__FUNCTION__,xmit->tail);
 		xmit->tail = ((xmit->tail) + up->dma_tx_cnt) & (UART_XMIT_SIZE-1);
 		DMATX_DEBUG("In %s -------------xmit->tail2=%d--------------------------START\n",__FUNCTION__,xmit->tail);
+#else
+		// seems super simple
+		up->dma_tx_cnt = kfifo_out(&tport->xmit_fifo, up->dma_tx_buf_v_start, DMA_TX_BUFFER_SZ);
+#endif
 
-spin_lock_irqsave(&up->lock_99100, flags);			
+spin_lock_irqsave(&up->lock_99100, flags);
 		up->serialise_txdma++;
-		//variable to serialise the DMA tx calls	
+		//variable to serialise the DMA tx calls
 		writel(up->dma_tx_buf_p_start,up->port.membase + REG_TX_DMA_START_ADDRESS_LOW);
 		writel(up->dma_tx_cnt,up->port.membase+REG_TX_DMA_LENGTH);
-		writel(TX_DMA_START_BIT, up->port.membase + REG_TX_DMA_START);	
+		writel(TX_DMA_START_BIT, up->port.membase + REG_TX_DMA_START);
 spin_unlock_irqrestore(&up->lock_99100, flags);
-		
-		TX_DEBUG("In %s programmed registers\n",__FUNCTION__);		
-		//UPDATING THE xmit FIFO WITH THE AMOUNT OF DATA TRANSFERRED		
+
+		TX_DEBUG("In %s programmed registers\n",__FUNCTION__);
+		//UPDATING THE xmit FIFO WITH THE AMOUNT OF DATA TRANSFERRED
 		txdma_status=0;
 	}else{
 		if (!(up->ier & UART_IER_THRI)) {
@@ -997,7 +1009,7 @@ spin_unlock_irqrestore(&up->lock_99100, flags);
 			serial_out(up, UART_IER, up->ier);
 		}
  	}
-	 
+
  	TX_DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
 }
 
@@ -1006,7 +1018,7 @@ static void serial99100_stop_rx(struct uart_port *port)
 {
 	struct uart_99100_port *up = &serial99100_ports[port->line];
 	//u32	value=0;
-	
+
 	DEBUG("In %s ---------------------------------------START\n",__FUNCTION__);
 	if(up->dma_rx){
 		//value |= RX_DMA_STOP_BIT;
@@ -1015,7 +1027,7 @@ static void serial99100_stop_rx(struct uart_port *port)
 		up->ier &= ~UART_IER_RLSI;
 		up->port.read_status_mask &= ~UART_LSR_DR;
 		serial_out(up, UART_IER, up->ier);
-	}	
+	}
 	DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
 }
 
@@ -1034,7 +1046,7 @@ static void serial99100_enable_ms(struct uart_port *port)
 //Function to check modem statuss
 static _INLINE_ void check_modem_status(struct uart_99100_port *up)
 {
-	u8 status;	
+	u8 status;
 
 	DEBUG("In %s -------------------- START\n",__FUNCTION__);
 	status = serial_in(up, UART_MSR);
@@ -1096,7 +1108,7 @@ static _INLINE_ void receive_chars(struct uart_99100_port *up, u8 *status, struc
 			 */
 		}
 		#endif
-		ch = serial_in(up, UART_RX);		
+		ch = serial_in(up, UART_RX);
 		flag = TTY_NORMAL;
 		up->port.icount.rx++;
 
@@ -1127,7 +1139,7 @@ static _INLINE_ void receive_chars(struct uart_99100_port *up, u8 *status, struc
 			/*
 			 * Mask off conditions which should be ignored.
 			 */
-			lsr &= up->port.read_status_mask;			
+			lsr &= up->port.read_status_mask;
 
 			if (lsr & UART_LSR_BI) {
 				DEBUG("handling break....");
@@ -1162,12 +1174,12 @@ static _INLINE_ void receive_chars(struct uart_99100_port *up, u8 *status, struc
 			} else {
 				if (up->enable_slave_9bit == 1) {
 				//printk("%s - S0 char: %x PE: %x \n", __FUNCTION__ , ch, lsr_PE);
-					uart_insert_char(&up->port, 
+					uart_insert_char(&up->port,
 							lsr,
 							UART_LSR_OE, ch, flag);
-				}				
-			}			
-			
+				}
+			}
+
 		} else if (up->mode_9bit == MODE_9BIT_MASTER) {
 			//printk("%s - M char: %x Flag: %x \n", __FUNCTION__ , ch, flag);
 			if (!lsr_PE) {
@@ -1179,11 +1191,11 @@ static _INLINE_ void receive_chars(struct uart_99100_port *up, u8 *status, struc
 			//printk("%s - char: %x PE: %x \n", __FUNCTION__ , ch, lsr_PE);
 			uart_insert_char(&up->port, lsr, UART_LSR_OE, ch, flag);
 		}
-		
+
 ignore_char:
 
 		lsr = serial_in(up, UART_LSR);
-	} while ((lsr & UART_LSR_DR) && (max_count-- > 0));	
+	} while ((lsr & UART_LSR_DR) && (max_count-- > 0));
 	spin_unlock(&up->port.lock);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
 	tty_flip_buffer_push(tty->port);
@@ -1191,7 +1203,7 @@ ignore_char:
 	tty_flip_buffer_push(tty);
 #endif
 	spin_lock(&up->port.lock);
-	
+
 	*status = lsr;
 	DEBUG("In %s -------------------------------------END\n",__FUNCTION__);
 }
@@ -1200,10 +1212,14 @@ ignore_char:
 //Helper function used in ISR to send the data to the UART
 static _INLINE_ void transmit_chars(struct uart_99100_port *up)
 {
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
 	struct circ_buf *xmit = &up->port.info->xmit;
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
 	struct circ_buf *xmit = &up->port.state->xmit;
+#else
+  struct tty_port *tport = &up->port.state->port;
+	unsigned char ch;
 #endif
 	int count;
 
@@ -1215,34 +1231,59 @@ static _INLINE_ void transmit_chars(struct uart_99100_port *up)
 		return;
 	}
 
-	if (uart_circ_empty(xmit) || uart_tx_stopped(&up->port)) {
+	if (
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
+		uart_circ_empty(xmit)
+#else
+		kfifo_is_empty(&tport->xmit_fifo)
+#endif
+		 || uart_tx_stopped(&up->port)) {
 		#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
 		serial99100_stop_tx(&up->port, 0);
 		#else
 		serial99100_stop_tx(&up->port);
-		#endif		
+		#endif
 		return;
 	}
 
 	count = uart_config[up->port.type].tx_loadsz;
 	DEBUG("In %s-----------up->port.type=%d,tx_loadsz=%d\n",__FUNCTION__,up->port.type,count);
 	do {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 		up->port.icount.tx++;
 		if (uart_circ_empty(xmit))
 			break;
+#else
+		if (!kfifo_get(&tport->xmit_fifo, &ch))
+			break;
+		serial_out(up, UART_TX, ch);
+#endif
 	} while (--count > 0);
 
-	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+	if (
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
+		  uart_circ_chars_pending(xmit)
+#else
+		  kfifo_len(&tport->xmit_fifo)
+#endif
+		  < WAKEUP_CHARS) {
 		uart_write_wakeup(&up->port);
+	}
 
-	if (uart_circ_empty(xmit)){
-		#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
+	if (
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
+		uart_circ_empty(xmit)
+#else
+		kfifo_is_empty(&tport->xmit_fifo)
+#endif
+	   ){
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
 		serial99100_stop_tx(&up->port, 0);
-		#else
+#else
 		serial99100_stop_tx(&up->port);
-		#endif
+#endif
 	}
 	DEBUG("In %s --------------------------------------2END\n",__FUNCTION__);
 }
@@ -1264,7 +1305,7 @@ static void transmit_chars_dma_stop_done(struct uart_99100_port * up)
 		xmit->tail=((xmit->tail)+transferred) & (UART_XMIT_SIZE-1);
 		up->port.icount.tx += transferred;
 		up->serialise_txdma=0;
-		
+
 		memset(up->dma_tx_buf_v,0,DMA_TX_BUFFER_SZ);
 		DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
 }
@@ -1275,50 +1316,63 @@ static int transmit_chars_dma_done(struct uart_99100_port * up)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
 	struct circ_buf *xmit = &up->port.info->xmit;
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,10)
 	struct circ_buf *xmit = &up->port.state->xmit;
+#else
+	struct tty_port *tport = &up->port.state->port;
 #endif
 	int length,len2end,tail,head;
-	
+
 	D_T_DEBUG("In %s ---------0x%x\n",__FUNCTION__,readl(up->port.membase+REG_TX_DMA_STATUS));
 	DMATX_DEBUG("In %s ---------------------------------------START\n",__FUNCTION__);
 
-	up->port.icount.tx += up->dma_tx_cnt;			
-	length = uart_circ_chars_pending(xmit); 
-	DMATX_DEBUG("In %s circ_buf lenght=%d after\n",__FUNCTION__,length); 
-	
+	up->port.icount.tx += up->dma_tx_cnt;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,10)
+	length = uart_circ_chars_pending(xmit);
+#else
+	length = kfifo_len(&tport->xmit_fifo);
+#endif
+	DMATX_DEBUG("In %s circ_buf lenght=%d after\n",__FUNCTION__,length);
+
 	DMATX_DEBUG("In %s up->dma_tx_buf_v=0x%x ---------------------------------------\n",__FUNCTION__,(unsigned int)up->dma_tx_buf_v);
-		
-	if (uart_circ_empty(xmit) || uart_tx_stopped(&up->port)){
-		up->serialise_txdma=0;			
+
+	if (
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,10)
+		uart_circ_empty(xmit)
+#else
+		kfifo_is_empty(&tport->xmit_fifo)
+#endif
+		|| uart_tx_stopped(&up->port)){
+		up->serialise_txdma=0;
 		if (length < WAKEUP_CHARS)
 			uart_write_wakeup(&up->port);
-		return 0;		
+		return 0;
 	}
 
-	//CALCULATING THE AMOUNT OF DATA AVAILABLE FOR THE NEXT TRANSFER 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,10)
+	//CALCULATING THE AMOUNT OF DATA AVAILABLE FOR THE NEXT TRANSFER
 	//AND COPYING THE DATA TO THE DMA BUFFER
-    head = xmit->head;
+  head = xmit->head;
 	tail = xmit->tail;
-	
+
 	length = uart_circ_chars_pending(xmit);
-	len2end = CIRC_CNT_TO_END(head, tail, UART_XMIT_SIZE); 
+	len2end = CIRC_CNT_TO_END(head, tail, UART_XMIT_SIZE);
 	DMATX_DEBUG("In %s -------xmit->tail=%d, xmit->head=%d,length=%d,length2end=%d\n",__FUNCTION__,tail,head,length,len2end);
-	
-	if(tail < head){	
+
+	if(tail < head){
 		if(length <= DMA_TX_BUFFER_SZ){
 			memcpy(up->dma_tx_buf_v,&xmit->buf[tail],length);  //xmit->buf + xmit->tail
 			D_T_DEBUG("In %s ---1-----0x%x\n",__FUNCTION__,readl(up->port.membase+REG_TX_DMA_STATUS));
 			up->dma_tx_cnt = length;
-			DMATX_DEBUG("In %s Normal mode\n",__FUNCTION__); 
+			DMATX_DEBUG("In %s Normal mode\n",__FUNCTION__);
 		}else{
 			memcpy(up->dma_tx_buf_v,&xmit->buf[tail],DMA_TX_BUFFER_SZ);
 			D_T_DEBUG("In %s ---1-----0x%x\n",__FUNCTION__,readl(up->port.membase+REG_TX_DMA_STATUS));
 			up->dma_tx_cnt = DMA_TX_BUFFER_SZ;
-		}	
+		}
 	}else{
 		if(length <= DMA_TX_BUFFER_SZ){
-			DMATX_DEBUG("In %s 2nd mode\n",__FUNCTION__); 
+			DMATX_DEBUG("In %s 2nd mode\n",__FUNCTION__);
 			memcpy(up->dma_tx_buf_v,&xmit->buf[tail],len2end);
 			memcpy(up->dma_tx_buf_v+len2end,xmit->buf,length - len2end);
 			D_T_DEBUG("In %s ---1-----0x%x\n",__FUNCTION__,readl(up->port.membase+REG_TX_DMA_STATUS));
@@ -1333,34 +1387,36 @@ static int transmit_chars_dma_done(struct uart_99100_port * up)
 				memcpy(up->dma_tx_buf_v,&xmit->buf[tail],DMA_TX_BUFFER_SZ);
 				D_T_DEBUG("In %s ---1-----0x%x\n",__FUNCTION__,readl(up->port.membase+REG_TX_DMA_STATUS));
 				up->dma_tx_cnt = DMA_TX_BUFFER_SZ;
-			}	
+			}
 		}
 	}
-	
+
 	//UPDATING THE xmit FIFO WITH THE AMOUNT OF DATA TRANSFERRED
 	DMATX_DEBUG("In %s -------------xmit->tail=%d--------------------------START\n",__FUNCTION__,tail);
 	xmit->tail = ((xmit->tail) + up->dma_tx_cnt) & (UART_XMIT_SIZE-1);
 	DMATX_DEBUG("In %s -------------xmit->tail2=%d--------------------------START\n",__FUNCTION__,tail);
-	
+
 
 	DMATX_DEBUG("In %s length=%d\n",__FUNCTION__,length);
-	
-	
+#else
+	up->dma_tx_cnt = kfifo_out(&tport->xmit_fifo, up->dma_rx_buf_v, DMA_TX_BUFFER_SZ);
+#endif
+
 	//INITIATING THE NEXT TRANSFER
-	writel(up->dma_tx_buf_p,up->port.membase + REG_TX_DMA_START_ADDRESS_LOW);	
-	//Writing the length of data to the TX DMA Length register	
+	writel(up->dma_tx_buf_p,up->port.membase + REG_TX_DMA_START_ADDRESS_LOW);
+	//Writing the length of data to the TX DMA Length register
 	writel(up->dma_tx_cnt,up->port.membase+REG_TX_DMA_LENGTH);
 	//Start the DMA data transfer
 	writel(TX_DMA_START_BIT,up->port.membase+REG_TX_DMA_START);
 
 	D_T_DEBUG("In %s ---1-----0x%x\n",__FUNCTION__,readl(up->port.membase+REG_TX_DMA_STATUS));
-	
+
 	// Requesting more data to send out from the TTY layer to the driver
 	if (length < WAKEUP_CHARS)
-		uart_write_wakeup(&up->port);	
-	
+		uart_write_wakeup(&up->port);
+
 	DMATX_DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
-	
+
 	return 0;
 }
 
@@ -1375,13 +1431,13 @@ static void receive_chars_dma_done(struct uart_99100_port * up, int iirg)
 	struct tty_struct *tty = up->port.state->port.tty;
 #endif
 	u8 ch;
-	int i;		
+	int i;
 	u32 received_bytes;
 	u32 need2recv,temp_spssr2=0;
 
 	up->k_lsr = serial_in(up, UART_LSR);
-	
-	
+
+
 	RXDMA_DBG("In %s ---------iirg=0x%x------------------------------START\n",__FUNCTION__,iirg);
 	//checking for the flip buffer size and asking to clear it upon some threshold
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,15)
@@ -1395,47 +1451,47 @@ static void receive_chars_dma_done(struct uart_99100_port * up, int iirg)
 #endif
 	need2recv=readl(up->port.membase + REG_RX_BYTES_NEED_TO_RECV);
 	RXDMA_DBG("In %s --------Receive DMA Part Done need2recv=%d\n",__FUNCTION__,need2recv);
-	RXDMA_DBG("In %s --------pre_need2recv_cnt=%d\n",__FUNCTION__,up->pre_need2recv_cnt);	
-	
+	RXDMA_DBG("In %s --------pre_need2recv_cnt=%d\n",__FUNCTION__,up->pre_need2recv_cnt);
+
 	if ( need2recv == 0 && up->pre_need2recv_cnt == 0) {
 		if (iirg & SPINTR_RXDMA_COMPLETE_ISR && !(iirg & SPINTR_RXDMA_DONE))
 			goto COMPLETED;
 	}
-	
+
 	up->pre_need2recv_cnt = need2recv;
-	
+
 	if ((iirg & SPINTR_RXDMA_DONE || iirg & SPINTR_RXDMA_COMPLETE_ISR)){
-	  
+
 		if (up->rx_dma_done_cnt >= (DMA_RX_BUFFER_SZ/DMA_RX_SZ)){
 			up->rx_dma_done_cnt=0;
 		}
-		
-		if (up->rx_dma_done_cnt == 0) 
+
+		if (up->rx_dma_done_cnt == 0)
 			received_bytes=(DMA_RX_SZ -(need2recv + up->part_done_recv_cnt));
 		else
-			received_bytes=(DMA_RX_BUFFER_SZ -(need2recv + up->part_done_recv_cnt));		
-					
+			received_bytes=(DMA_RX_BUFFER_SZ -(need2recv + up->part_done_recv_cnt));
+
 		//copiying the recived bytes to the TTY layers flip buffer
 		if (tty){
-			
+
 			for (i = 1; i <= received_bytes; i++){
 				/* if we insert more than TTY_FLIPBUF_SIZE characters, tty layer will drop them. */
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,15)
 				if(tty->flip.count >= TTY_FLIPBUF_SIZE){
 					tty_flip_buffer_push(tty);
 				}
-#endif				
+#endif
 				if (uart_handle_sysrq_char(&up->port, ch))
 					goto ignore_char;
 
-				/* this doesn't actually push the data through unless tty->low_latency is set */					
+				/* this doesn't actually push the data through unless tty->low_latency is set */
 				uart_insert_char(&up->port, up->k_lsr, UART_LSR_OE, up->dma_rx_buf_v[up->part_done_recv_cnt], TTY_NORMAL);
 ignore_char:
 				up->part_done_recv_cnt++;
 
 				if(up->part_done_recv_cnt == DMA_RX_BUFFER_SZ)
-					up->part_done_recv_cnt = 0;				
-			}				
+					up->part_done_recv_cnt = 0;
+			}
 
 		}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
@@ -1456,34 +1512,34 @@ ignore_char:
 		up->boundary_check = 1;
 		temp_spssr2=readl(up->port.membase+SP_SETTING_REG2);
 		up->old_spssr2=temp_spssr2;
-			
+
 		temp_spssr2&=0x03ffffff;
 		temp_spssr2|=0x03fffc00;
-		writel(temp_spssr2,up->port.membase+SP_SETTING_REG2);		
+		writel(temp_spssr2,up->port.membase+SP_SETTING_REG2);
 	}
-	
+
 COMPLETED:
 	if (iirg & SPINTR_RXDMA_COMPLETE_ISR) {
-			
+
 		up->pre_need2recv_cnt = DMA_RX_SZ;
 		up->boundary_check = 0;
-		
-		if (up->rx_dma_done_cnt == 0) 
+
+		if (up->rx_dma_done_cnt == 0)
 			up->dma_start_offset = DMA_RX_SZ;
-		else 
+		else
 			up->dma_start_offset = 0;
-		
+
 		//Reinitialise the DMA
 		writel(up->dma_rx_buf_p + up->dma_start_offset, up->port.membase + REG_RX_DMA_START_ADDRESS_LOW);
 		//writel(0,up->port.membase+REG_RX_DMA_START_ADDRESS_HIGH);
-		writel(DMA_RX_SZ,up->port.membase+REG_RX_DMA_LENGTH);			
+		writel(DMA_RX_SZ,up->port.membase+REG_RX_DMA_LENGTH);
 		writel(RX_DMA_START_BIT,up->port.membase+REG_RX_DMA_START);
-		
-		writel(up->old_spssr2,up->port.membase+SP_SETTING_REG2);			
-			
+
+		writel(up->old_spssr2,up->port.membase+SP_SETTING_REG2);
+
 		up->rx_dma_done_cnt++;
-	}	
-	
+	}
+
 }
 
 
@@ -1507,15 +1563,15 @@ static inline void serial99100_handle_port(struct uart_99100_port *up, struct pt
 	#else
 		receive_chars(up, &status, regs);
 	#endif
-	
+
 	}
-	
+
 	if ((status & UART_LSR_THRE) && !up->dma_tx){
 		DEBUG("TRANSMIT_CHARS\n");
 		transmit_chars(up);
 	}
-	
-	DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);	
+
+	DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
 }
 
 
@@ -1531,10 +1587,10 @@ static irqreturn_t serial99100_interrupt(int irq, void *dev_id, struct pt_regs *
 	struct uart_99100_port *up = dev_id;
 	u32 gir=0;
 	u8 iir=0;
-	int handled=0;	
+	int handled=0;
 	DEBUG("In %s ---------------------------------------START\n",__FUNCTION__);
 	DEBUG("In %s -----line %d\n", __FUNCTION__ ,__LINE__);
-#if 0	
+#if 0
 	if (suspend_count == 4 && ((gpio_mode == GPIO_4MP_MODE) || (gpio_mode == GPIO_2S_2MP_MODE) || (gpio_mode == GPIO_4S_MODE))){
 		gir = 0;
 		DEBUG("In %s -----line %d\n", __FUNCTION__ ,__LINE__);
@@ -1550,39 +1606,39 @@ static irqreturn_t serial99100_interrupt(int irq, void *dev_id, struct pt_regs *
 		gir= readl(up->port.membase+ REG_GLBL_ISR);
 		DEBUG("In %s, suspend_count: %d, ports_count: %d -----line %d\n", __FUNCTION__ , suspend_count, ports_count,__LINE__);
 	}
-	
-#endif	
+
+#endif
 	DEBUG("In %s -----line %d\n", __FUNCTION__ ,__LINE__);
 	//clear glbl int
-	writel(gir,up->port.membase+REG_GLBL_ICLR);	
+	writel(gir,up->port.membase+REG_GLBL_ICLR);
 
 	//if (gir == 0)
 	//	return IRQ_RETVAL(0);
-		
+
 	//DMA RX
 	// DEBUG("In %s ---------------------------------------DMA RX\n",__FUNCTION__);
-	if (gir & SPINTR_RXDMA) {	
-		DEBUG("In %s ---------------------------------------DMA RX START_line=%d\n",__FUNCTION__,__LINE__);	
+	if (gir & SPINTR_RXDMA) {
+		DEBUG("In %s ---------------------------------------DMA RX START_line=%d\n",__FUNCTION__,__LINE__);
 		up->k_gir = gir & SPINTR_RXDMA;
 		tasklet_schedule(&up->tasklet_dma_rx);
-		handled=1;			
-	} 
+		handled=1;
+	}
 	//DMA TX
 	// DEBUG("In %s ---------------------------------------START\n",__FUNCTION__);
 	if (gir & SPINTR_TXDMA_ISR) {
 		DEBUG("In %s ---------------------------------------DMA TX START_line=%d\n",__FUNCTION__,__LINE__);
 		tasklet_schedule(&up->tasklet_dma_tx);
 		handled=1;
-	} 
-	
+	}
+
 	//FIFO
-	if (gir & SPINTR_ISR) {				
+	if (gir & SPINTR_ISR) {
 		DEBUG("In %s ---------------------------------------FIFO START_line=%d\n",__FUNCTION__,__LINE__);
 		iir = serial_in(up, UART_IIR);
 		if (!(iir & UART_IIR_NO_INT)) {
-			DEBUG("In %s ---------------------------------------Line=%d\n",__FUNCTION__,__LINE__);			
+			DEBUG("In %s ---------------------------------------Line=%d\n",__FUNCTION__,__LINE__);
 			spin_lock(&up->port.lock);
-			
+
 			if ((iir & 0x3F) == 0x0) {
 				DEBUG("In %s ---------------------------------------LINE=%d\n",__FUNCTION__,__LINE__);
 				check_modem_status(up);
@@ -1590,15 +1646,15 @@ static irqreturn_t serial99100_interrupt(int irq, void *dev_id, struct pt_regs *
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,20)
 				DEBUG("In %s ---------------------------------------run serial99100_handle_port line=%d\n",__FUNCTION__,__LINE__);
 				serial99100_handle_port(up);
-				
+
 #else
 				DEBUG("In %s ---------------------------------------run serial99100_handle_port line=%d\n",__FUNCTION__,__LINE__);
 				serial99100_handle_port(up, regs);
-#endif	
+#endif
 			}
 			spin_unlock(&up->port.lock);
 			handled = 1;
-		}		
+		}
 	}
 
 	return IRQ_RETVAL(handled);
@@ -1616,7 +1672,7 @@ static unsigned int serial99100_tx_empty(struct uart_port *port)
 	ret = serial_in(up, UART_LSR) & UART_LSR_TEMT ? TIOCSER_TEMT : 0;
 	spin_unlock_irqrestore(&up->lock_99100, flags);
 	DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
-	
+
 	return ret;
 }
 
@@ -1680,10 +1736,10 @@ static int serial99100_startup(struct uart_port *port)
 
 	up->capabilities = uart_config[up->port.type].flags;
 	up->mcr = 0;
-	up->part_done_recv_cnt = 0;	
+	up->part_done_recv_cnt = 0;
 	up->rx_dma_done_cnt = 0;
 	up->dma_start_offset = 0;
-	up->first_tx_dma = 1;	
+	up->first_tx_dma = 1;
 	up->boundary_check = 0;
 	up->old_spssr2 = 0;
 	up->serialise_txdma = 0;
@@ -1699,8 +1755,8 @@ static int serial99100_startup(struct uart_port *port)
 	 */
 	if(up->dma_tx || up->dma_rx)
 		(void) writel(0xFF,up->port.membase+REG_GLBL_ICLR);
-	
-		
+
+
 	(void) serial_in(up, UART_LSR);
 	(void) serial_in(up, UART_RX);
 	(void) serial_in(up, UART_IIR);
@@ -1716,25 +1772,25 @@ static int serial99100_startup(struct uart_port *port)
 	//Rx data transfer Interrupts
 	up->ier = UART_IER_RLSI | UART_IER_RDI;
 	serial_out(up, UART_IER, up->ier);
-	
+
 	//up->ier |= UART_IER_MSI;
 	//serial_out(up, UART_IER, up->ier);
-	
+
 	/* ASUS setting */
 	if ((CusEEbuffer.cus_mod == CUS_ASUS) && (up->function_number > 1))
 		serial99100_serialSettingGPIO(up);
-	
+
 	if(up->port.type == PORT_16550A){
 		DEBUG("In %s 550EX mode\n",__FUNCTION__);
 		ser_dcr_din_val=readl(up->port.membase+SP_SETTING_REG0);
 		ser_dcr_din_val |= COM_550EX_MODE_EN;
 		writel(ser_dcr_din_val,up->port.membase+SP_SETTING_REG0);
 		DEBUG("In %s 550EX mode SP_SETTING_REG0=0x%x\n",__FUNCTION__,readl(up->port.membase+SP_SETTING_REG0));
-	
+
 		if(up->flow_control){
 			DEBUG("Enabled the Auto Hardware Flowcontrol\n");
             serial_mcr_write(up, UART_MCR_AFE, UART_MCR_AFE);
-		}	
+		}
 
 		if (up->capabilities & UART_CAP_FIFO && uart_config[port->type].fifo_size > 1) {
 				fcr = uart_config[up->port.type].fcr;
@@ -1742,7 +1798,7 @@ static int serial99100_startup(struct uart_port *port)
 		}
 	}
 
-	
+
 	if((up->port.type == PORT_ENHANCED) || (up->custom_setting == 1)){
 		//Setting the Enhanced Mode Features
         serial_efrs_write(up, UART_EFR, UART_EFR_ECB, UART_EFR_ECB);
@@ -1795,10 +1851,10 @@ static int serial99100_startup(struct uart_port *port)
 				cks=serial_icr_read(up,UART_CKS);
 				cks |= 0x00;
 
-				//ACR - [4:3]-10 -> 0x10, 
+				//ACR - [4:3]-10 -> 0x10,
 				acr = 0x18;
 				break;
-				
+
 			case AX99100_RS485_HALF_DUPLEX_ECHO:
 				//Commset Registers Offset 0
 				//0x0008 0000  -19thBit -1 SW RS485 enable
@@ -1821,7 +1877,7 @@ static int serial99100_startup(struct uart_port *port)
 				cks = serial_icr_read(up,UART_CKS);
 				cks |= 0x00;
 
-				//ACR - [4:3]-11 -> 0x18, 
+				//ACR - [4:3]-11 -> 0x18,
 				acr = 0x18;
 				break;
 
@@ -1849,7 +1905,7 @@ static int serial99100_startup(struct uart_port *port)
 				cks = serial_icr_read(up,UART_CKS);
 				cks |= 0x00;
 
-				//ACR - 0x10, 
+				//ACR - 0x10,
 				acr = 0x10;
 				break;
 			case AX99100_RS485_FULL_DUPLEX:
@@ -1863,7 +1919,7 @@ static int serial99100_startup(struct uart_port *port)
 				DEBUG("TranceiverMode AX99100_RS485_MODE - RS485_FULL_DUPLEX\n");
 				ser_dcr_din_val = readl(up->port.membase+SP_SETTING_REG0);
 				ser_dcr_din_val &= 0xfff00fff;
-				ser_dcr_din_val |= 0x000A0000;			  
+				ser_dcr_din_val |= 0x000A0000;
 
 				//Commset Registers Offset 1
 				//0xff00 0000  -[31-24] ff
@@ -1875,7 +1931,7 @@ static int serial99100_startup(struct uart_port *port)
 				cks = serial_icr_read(up,UART_CKS);
 				cks |= 0x00;
 
-				//ACR - 0x10, 
+				//ACR - 0x10,
 				acr = 0x18;
 				break;
 			default:
@@ -1884,14 +1940,14 @@ static int serial99100_startup(struct uart_port *port)
 				break;
 		}
 
-		if(up->uart_mode > 0){	
+		if(up->uart_mode > 0){
 			up->acr = up->acr|acr;
 
 			writel(ser_dcr_din_val,up->port.membase+SP_SETTING_REG0);
 			writel(ser_ven_val,up->port.membase+SP_SETTING_REG1);
 			serial_icr_write(up,UART_CKS,cks);
 			serial_icr_write(up,UART_ACR,up->acr);
-			
+
 			DEBUG("SP_SETTING_REG0=0x%x   SP_SETTING_REG1=0x%x   UART_CKS=0x%x   UART_ACR=0x%x\n",
 				readl(up->port.membase+SP_SETTING_REG0),readl(up->port.membase+SP_SETTING_REG1),cks,up->acr);
 		}
@@ -1902,9 +1958,9 @@ static int serial99100_startup(struct uart_port *port)
 		up->acr |= UART_ACR_TLENB;
 		serial_icr_write(up,UART_ACR,up->acr);
 
-		//If Hardware Flow Control is to be enabled. The RTS/CTS, DTR/DSR is possible only in 232 mode. 
+		//If Hardware Flow Control is to be enabled. The RTS/CTS, DTR/DSR is possible only in 232 mode.
 		if(up->flow_control && up->uart_mode == AX99100_RS232_MODE){
-			
+
 			//Setting the auto hardware flow control trigger levels
 			serial_icr_write(up,UART_FCL,16);
 			serial_icr_write(up,UART_FCH,240);
@@ -1922,8 +1978,8 @@ static int serial99100_startup(struct uart_port *port)
 					}else{
 						DEBUG("No flow control enabled\n");
 						break;
-					}			
-					
+					}
+
 				case AX99100_XON_XOFF_HW_FLOWCONTROL:
 					DEBUG("Enabled HwFlowControl AX99100_XON_XOFF_HW_FLOWCONTROL\n");
 					if (up->mode_9bit != MODE_9BIT_SLAVE_HW) {
@@ -1931,7 +1987,7 @@ static int serial99100_startup(struct uart_port *port)
                         serial_efrs_write(up, UART_XON1, 0xff, up->x_on);
                         serial_efrs_write(up, UART_XOFF1, 0xff, up->x_off);
                         serial_efrs_write(up, UART_XON2, 0xff, up->x_on);
-                        serial_efrs_write(up, UART_XOFF2, 0xff, up->x_off);                        
+                        serial_efrs_write(up, UART_XOFF2, 0xff, up->x_off);
 					}
 					break;
 
@@ -1941,7 +1997,7 @@ static int serial99100_startup(struct uart_port *port)
 						DEBUG("H/W Flow Control AX99100_RTS_CTS_HW_FLOWCONTROL enabled\n");
 						serial_efrs_write(up, UART_EFR, 0xD0, UART_EFR_CTS|UART_EFR_RTS|UART_EFR_ECB);
                         serial_mcr_write(up, UART_MCR_RTS, UART_MCR_RTS);
-						break;	
+						break;
 					}else{
 						DEBUG("No H/W flow control enabled\n");
 					}
@@ -1953,7 +2009,7 @@ static int serial99100_startup(struct uart_port *port)
             efr = serial_efrs_read(up, UART_EFR);
             serial_efrs_write(up, UART_XOFF2, 0xff, up->nodeID_9bit);
             serial_efrs_write(up, UART_EFR, 0xff, efr);
-		}		
+		}
 
 		// 2872 setup
 		if (up->ax99100_port_mode == AX99100_MF_PORT) {
@@ -1974,7 +2030,7 @@ static int serial99100_startup(struct uart_port *port)
 				if (up->uart_mode == AX99100_RS485_HALF_DUPLEX || up->uart_mode == AX99100_RS485_HALF_DUPLEX_ECHO)
 					offset3c0 |= (1 << 4);
 				else
-					offset3c0 &= ~(1 << 4);				
+					offset3c0 &= ~(1 << 4);
 
 				// FEN
 				if (up->ltc2872_fen == 1)
@@ -1993,7 +2049,7 @@ static int serial99100_startup(struct uart_port *port)
 				if (up->uart_mode == AX99100_RS485_HALF_DUPLEX || up->uart_mode == AX99100_RS485_HALF_DUPLEX_ECHO)
 					offset3c0 |= (1 << 1);
 				else
-					offset3c0 &= ~(1 << 1);				
+					offset3c0 &= ~(1 << 1);
 
 				// FEN
 				if (up->ltc2872_fen == 1)
@@ -2024,13 +2080,13 @@ static int serial99100_startup(struct uart_port *port)
 				ser_dcr_din_val &= ~(((u32)1) << 31);
 
 			// 485/232
-			if (up->uart_mode == AX99100_RS232_MODE) {	
+			if (up->uart_mode == AX99100_RS232_MODE) {
 				ser_dcr_din_val &= ~(1 << 19);
 			} else {
 				ser_dcr_din_val |= (1 << 19);
 			}
-		}				
-		
+		}
+
 		if (up->uart_mode == AX99100_RS232_MODE) {
 			if (up->ax99100_port_mode == AX99100_MF_PORT)
 				ser_dcr_din_val |= (1 << 11);
@@ -2045,16 +2101,16 @@ static int serial99100_startup(struct uart_port *port)
 			MP_DBG(KERN_ERR"   set ser_dcr_din_val = 0x%x\n", ser_dcr_din_val);
 			MP_DBG(KERN_ERR"   re-read set ser_dcr_din_val = 0x%x\n", readl(up->port.membase + SP_SETTING_REG0));
 		}
-	}	
-	
+	}
+
 	/*
 	 * Finally, enable interrupts.  Note: Modem status interrupts
 	 * are set via set_termios(), which will be occurring imminently
 	 * anyway, so we don't enable them here.
 	 */
-	if(up->dma_rx || up->dma_tx){		
+	if(up->dma_rx || up->dma_tx){
 		writel(0xFE,up->port.membase+REG_GLBL_IER);
-		
+
 
 		if(up->dma_rx){
 			//Set the comset DMA register to enable DMA
@@ -2062,10 +2118,10 @@ static int serial99100_startup(struct uart_port *port)
 			ser_dcr_din_val=readl(up->port.membase+SP_SETTING_REG0);
 			ser_dcr_din_val |= COM_DMA_MODE_EN;
 			writel(ser_dcr_din_val,up->port.membase+SP_SETTING_REG0);
-			DEBUG("SP_SETTING_REG0=0x%x\n",readl(up->port.membase+SP_SETTING_REG0));	
+			DEBUG("SP_SETTING_REG0=0x%x\n",readl(up->port.membase+SP_SETTING_REG0));
 		}
 
-		
+
 		if (!up->dma_tx && up->dma_rx) {
 			serial_out(up,UART_IER, UART_IER_RDI | UART_IER_RLSI /*| UART_IER_MSI*/ | UART_IER_THRI);
 		} else {
@@ -2077,10 +2133,10 @@ static int serial99100_startup(struct uart_port *port)
 			writel(up->dma_rx_buf_p,up->port.membase+REG_RX_DMA_START_ADDRESS_LOW);
 			writel(0,up->port.membase+REG_RX_DMA_START_ADDRESS_HIGH);
 			writel(DMA_RX_SZ,up->port.membase+REG_RX_DMA_LENGTH);
-			writel(RX_DMA_START_BIT,up->port.membase+REG_RX_DMA_START);			
+			writel(RX_DMA_START_BIT,up->port.membase+REG_RX_DMA_START);
 			up->pre_need2recv_cnt = DMA_RX_SZ;
 		}
-		if(up->dma_tx)			
+		if(up->dma_tx)
 			writel(0,up->port.membase + REG_TX_DMA_START_ADDRESS_HIGH);
 	} else {
 		serial_out(up,UART_IER,UART_IER_THRI);
@@ -2122,7 +2178,7 @@ static void serial99100_shutdown(struct uart_port *port)
         DEBUG("iobase is 0x%x\n",up->port.iobase);
 
 	printk("No of Errors In ttyF%d brake=%d frame=%d parity=%d overrun=%d\n",
-		port->line, 
+		port->line,
 		port->icount.brk,
 		port->icount.frame,
 		port->icount.parity,
@@ -2144,7 +2200,7 @@ static void serial99100_shutdown(struct uart_port *port)
 	 */
 	up->ier = 0;
 	serial_out(up, UART_IER, 0);
-	
+
 	//tasklet kill
 	tasklet_kill(&up->tasklet_dma_rx);
 	tasklet_kill(&up->tasklet_dma_tx);
@@ -2179,7 +2235,7 @@ static void serial99100_shutdown(struct uart_port *port)
 	        DEBUG("mapbase is 0x%x\n",up->port.mapbase);
         	DEBUG("iobase is 0x%x\n",up->port.iobase);
 		up->acr = 0x00;
-	
+
 		// ENHANCED Mode reset
 		serial_icr_write(up, UART_CSR, 0x00);
 		serial_icr_write(up, UART_CSR, 0xFF);
@@ -2193,17 +2249,17 @@ static void serial99100_shutdown(struct uart_port *port)
 		ser_dcr_din_val=readl(up->port.membase+SP_SETTING_REG0);
 		ser_dcr_din_val &= ~(COM_DMA_MODE_EN);
 		writel(ser_dcr_din_val,up->port.membase+SP_SETTING_REG0);
-		DEBUG("SP_SETTING_REG0=0x%x\n",readl(up->port.membase+SP_SETTING_REG0));	
+		DEBUG("SP_SETTING_REG0=0x%x\n",readl(up->port.membase+SP_SETTING_REG0));
 	}
 	// Setup DXEN direction to input in RS485 mode
 	if (up->uart_mode != AX99100_RS232_MODE) {
 		writel(readl(up->port.membase + SP_SETTING_REG0) & ~(1 << 11) , up->port.membase + SP_SETTING_REG0);
-	}	
+	}
 
 	DEBUG("In %s --------------------------------------END\n",__FUNCTION__);
 }
 
-//This is a port ops helper function to return the divsor (baud_base / baud) for the selected baud rate 
+//This is a port ops helper function to return the divsor (baud_base / baud) for the selected baud rate
 //	specified by termios.
 static unsigned int serial99100_get_divisor(struct uart_port *port, unsigned int baud)
 {
@@ -2214,7 +2270,7 @@ static unsigned int serial99100_get_divisor(struct uart_port *port, unsigned int
 	quot = uart_get_divisor(port, baud);
 
 	DEBUG("In %s quot=%u----baud=%u-----------------------------END\n",__FUNCTION__,quot,baud);
-	return quot;	
+	return quot;
 }
 
 //This is a port ops function to set the terminal settings.
@@ -2230,14 +2286,14 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 	u8 cval,fcr=0;
 	unsigned long flags;
 	unsigned int baud, quot;
-	unsigned int source_select = 0;  //Internal 1=1.8382M 0=125M 
+	unsigned int source_select = 0;  //Internal 1=1.8382M 0=125M
 	unsigned int sampling_clock = 16; // 16:use default 16 bits sampling clock
 	u32 sp_clk_val = 0;
-	u32 internal_clk_val = 0;	
+	u32 internal_clk_val = 0;
 	u32 gpi0_3D4_value;
 
 	DEBUG("In %s ---------------------------------------START\n",__FUNCTION__);
-	
+
 	switch (termios->c_cflag & CSIZE) {
 	case CS5:
 		cval = 0x00;
@@ -2264,36 +2320,36 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 	if (termios->c_cflag & CMSPAR)
 		cval |= UART_LCR_SPAR;
 #endif
-	
+
 	/*
 	 * Ask the core to calculate the divisor for us.
 	 */
-	
 
-	if (up->custom_setting == 1) {	
+
+	if (up->custom_setting == 1) {
 		if (!(readl(up->bar5membase + EDS_REG) & EDS_EOES) && up->baud_base_clock == CLK_EXTERNAL) {
 			printk("AX99100_SP:Extenal Oscillator does not exist!\n");
-			printk("AX99100_SP:Baud Rate setting: 115200\n");	
+			printk("AX99100_SP:Baud Rate setting: 115200\n");
 			up->baud_base_clock = 0x00;
 			baud = 115200;
 			up->custom_dlm = 0x00;
 			up->custom_dll = 0x01;
 			up->custom_sampling_clock = 0x10;
 		}
-	  
-		source_select = up->baud_base_clock;		
-		baud = up->custom_baud;	
-		BR_DBG(KERN_ERR"   (custom)function %d BaudRate = %d\n", up->function_number , baud);		
+
+		source_select = up->baud_base_clock;
+		baud = up->custom_baud;
+		BR_DBG(KERN_ERR"   (custom)function %d BaudRate = %d\n", up->function_number , baud);
 		switch (up->baud_base_clock) {
 			case CLK_125M:
 				port->uartclk = BASE_CLK_125M;
-				up->dma_delay_timeout = (5 * ((up->custom_dlm*256)+up->custom_dll) * 768)/1000+1;				
+				up->dma_delay_timeout = (5 * ((up->custom_dlm*256)+up->custom_dll) * 768)/1000+1;
 				break;
 			case CLK_EXTERNAL:
 				port->uartclk = BASE_CLK_24M;
 				if (CusEEbuffer.ext_clk != 0xFFFFFFFF)
 					port->uartclk = CusEEbuffer.ext_clk;
-					
+
 				up->dma_delay_timeout = (42 * ((up->custom_dlm*256)+up->custom_dll) * 768)/1000+1;
 				break;
 			case CLK_1_8382M:
@@ -2301,13 +2357,13 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 				port->uartclk = BASE_CLK_1_838235;
 				up->dma_delay_timeout = (540 * ((up->custom_dlm*256)+up->custom_dll) * 768)/1000+1;
 				break;
-		}		
+		}
 
-		sp_clk_val = (readl(up->port.membase + SP_BR_CLK_SEL_REG) & CLK_MASK) | source_select;			
+		sp_clk_val = (readl(up->port.membase + SP_BR_CLK_SEL_REG) & CLK_MASK) | source_select;
 		writel(sp_clk_val, up->port.membase + SP_BR_CLK_SEL_REG);
 		BR_DBG(KERN_ERR"   (custom)function %d SP_BR_CLK_SEL_REG = 0x%x\n",up->function_number , readl(up->port.membase + SP_BR_CLK_SEL_REG));
-		
-		if ( source_select == CLK_EXTERNAL ){		  
+
+		if ( source_select == CLK_EXTERNAL ){
 			do {
 				 mdelay(1);
 				 gpi0_3D4_value = readl(up->bar5membase + EDS_REG);
@@ -2315,15 +2371,15 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 					break;
 			} while (1);
 		}
-		
+
 		internal_clk_val = readl(up->bar5membase + 0x70);
 		if (source_select == CLK_1_8382M)
 			internal_clk_val |= (1 << up->function_number);
 		else
 			internal_clk_val &= ~(1 << up->function_number);
-  
+
 		BR_DBG(KERN_ERR"   (custom)function %d bar5 + 0x70 = 0x%X\n",up->function_number , internal_clk_val);
-		writel(internal_clk_val, up->bar5membase + 0x70);	
+		writel(internal_clk_val, up->bar5membase + 0x70);
 
 		BR_DBG(KERN_ERR"   (custom)function %d dlm = %d, dll = %d\n",up->function_number ,up->custom_dlm, up->custom_dll);
 		serial_dlrs_write(up, UART_DLL, up->custom_dll);	/* LS of divisor */
@@ -2334,31 +2390,31 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 		BR_DBG(KERN_ERR"   (custom)function %d sampling clock = 0x%X\n",up->function_number ,sampling_clock);
 
 	} else {
-		port->uartclk = DEFAULT99100_BAUD*16;	
+		port->uartclk = DEFAULT99100_BAUD*16;
 		baud = uart_get_baud_rate(port, termios, old, 0, 25000000);
 		DEBUG("In %s -------------------baud=%u\n",__FUNCTION__,baud);
 		BR_DBG(KERN_ERR"   (standard)function %d BaudRate = %d\n",up->function_number , baud);
 		// default source_select = CLK_1_8382M
 		internal_clk_val = readl(up->bar5membase + 0x70);
 		internal_clk_val |= (1 << up->function_number);
-		
+
 		BR_DBG(KERN_ERR"   (standard)function %d bar5 + 0x70 = 0x%X\n",up->function_number , internal_clk_val);
 		writel(internal_clk_val, up->bar5membase + 0x70);
 
 		// default source_select = CLK_1_8382M
-		source_select	= CLK_1_8382M;		
+		source_select	= CLK_1_8382M;
 		// baud = 25000000;
-		// DEBUG("baud before switch case = %u bps.\n",baud);	
-		printk("baud before switch case = %u bps.\n",baud);	
+		// DEBUG("baud before switch case = %u bps.\n",baud);
+		printk("baud before switch case = %u bps.\n",baud);
 		if(baud > 115200) {
 
-			switch (baud) {		
-				// clk_source = CLK_125M		
+			switch (baud) {
+				// clk_source = CLK_125M
 				case 230400:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
 					sampling_clock = 17;
-					quot = 32; 
+					quot = 32;
 					break;
 				case 460800:
 					port->uartclk = BASE_CLK_125M;
@@ -2378,43 +2434,43 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 				case 125000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 40; 
+					quot = 40;
 					sampling_clock = 25;
 					break;
 				case 153600:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 51; 
+					quot = 51;
 					sampling_clock = 16;
 					break;
 				case 225000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 35; 
+					quot = 35;
 					sampling_clock = 16;
 					break;
 				case 403200:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 10; 
+					quot = 10;
 					sampling_clock = 31;
 					break;
 				case 576000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 7; 
+					quot = 7;
 					sampling_clock = 31;
 					break;
 				case 625000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 20; 
+					quot = 20;
 					sampling_clock = 10;
 					break;
 				case 806400:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 5; 
+					quot = 5;
 					sampling_clock = 31;
 					break;
 				case 1152000:
@@ -2426,61 +2482,61 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 				case 1250000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 10; 
+					quot = 10;
 					sampling_clock = 10;
 					break;
 				case 1843200:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 68;
 					break;
 				case 2764800:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 45;
 					break;
 				case 3125000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 40;
 					break;
 				case 3686400:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 34;
 					break;
 				case 7812500:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 16;
 					break;
 				case 8928571:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 14;
 					break;
 				case 10416666:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 12;
 					break;
 				case 12500000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 10;
 					break;
 				case 15625000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 8;
 					break;
 
@@ -2488,31 +2544,31 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 				case 2500000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 50;
 					break;
 
 				case 5000000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 5; 
+					quot = 5;
 					sampling_clock = 5;
 					break;
 
 				case 25000000:
 					port->uartclk = BASE_CLK_125M;
 					source_select = CLK_125M;
-					quot = 1; 
+					quot = 1;
 					sampling_clock = 5;
 					break;
 
-				// clk_source = BASE_CLK_24M	
+				// clk_source = BASE_CLK_24M
 				case 200000:
 					port->uartclk = BASE_CLK_24M;
 					source_select = CLK_EXTERNAL;
 					quot = 10;//DLM 0 DLL 10 = 10
 					sampling_clock = 12;//Sampling Rate=TCLK 0xC
-					break;	
+					break;
 				case 250000:
 					port->uartclk = BASE_CLK_24M;
 					source_select = CLK_EXTERNAL;
@@ -2548,7 +2604,7 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 					source_select = CLK_EXTERNAL;
 					quot = 2;//DLM 0 DLL 2 = 2
 					sampling_clock = 12;//Sampling Rate=TCLK 0xC
-					break;	
+					break;
 				case 1500000:
 					port->uartclk = BASE_CLK_24M;
 					source_select = CLK_EXTERNAL;
@@ -2582,9 +2638,9 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 			}
 		} else {
 			quot = serial99100_get_divisor(port, baud);
-		}		
+		}
 
-		sp_clk_val = (readl(up->port.membase + SP_BR_CLK_SEL_REG) & CLK_MASK) | source_select;		
+		sp_clk_val = (readl(up->port.membase + SP_BR_CLK_SEL_REG) & CLK_MASK) | source_select;
 		BR_DBG(KERN_ERR"   (standard)function %d SP_BR_CLK_SEL_REG = 0x%X\n",up->function_number , sp_clk_val);
 		writel(sp_clk_val, up->port.membase + SP_BR_CLK_SEL_REG);
 
@@ -2594,11 +2650,11 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 		up->lcr = cval;					/* Save LCR */
 
 		BR_DBG(KERN_ERR"   (standard)function %d sampling clock = 0x%X\n",up->function_number ,sampling_clock);
-		
+
 		up->dma_delay_timeout = (540 * quot * 768)/1000+1;
 		// switch (port->uartclk) {
 		// 	case CLK_125M:
-		// 		up->dma_delay_timeout = (5 * ((up->custom_dlm*256)+up->custom_dll) * 768)/1000+1;				
+		// 		up->dma_delay_timeout = (5 * ((up->custom_dlm*256)+up->custom_dll) * 768)/1000+1;
 		// 		break;
 		// 	case BASE_CLK_24M:
 		// 		if (CusEEbuffer.ext_clk != 0xFFFFFFFF)
@@ -2610,7 +2666,7 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 		// 		port->uartclk = BASE_CLK_1_838235;
 		// 		up->dma_delay_timeout = (540 * ((up->custom_dlm*256)+up->custom_dll) * 768)/1000+1;
 		// 		break;
-		// }		
+		// }
 	}
 
 	if (up->capabilities & UART_CAP_FIFO && uart_config[port->type].fifo_size > 1) {
@@ -2619,7 +2675,7 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 		else
 			fcr = uart_config[up->port.type].fcr;
 	}
-	
+
 	/*
 	 * MCR-based auto flow control.  When AFE is enabled, RTS will be
 	 * deasserted when the receive FIFO contains more characters than
@@ -2699,17 +2755,17 @@ static void serial99100_set_termios(struct uart_port *port, struct termios *term
 		if (fcr & UART_FCR_ENABLE_FIFO) {
 			/* emulated UARTs (Lucent Venus 167x) need two steps */
 			serial_out(up, UART_FCR, UART_FCR_ENABLE_FIFO);
-			
+
 		}
 		serial_out(up,UART_FCR,fcr);		/* set fcr */
-		DEBUG("In %s UART_FCR is written with fcr=0x%x\n",__FUNCTION__,fcr);	
+		DEBUG("In %s UART_FCR is written with fcr=0x%x\n",__FUNCTION__,fcr);
 	}
 
 	serial_icr_write(up, UART_TCR, sampling_clock);
 
     serial_out(up, UART_LCR, up->lcr);
 	spin_unlock_irqrestore(&up->lock_99100, flags);
-    serial_mcr_write(up, 0xff, up->mcr);	
+    serial_mcr_write(up, 0xff, up->mcr);
 	DEBUG("In %s ------------------------------END\n",__FUNCTION__);
 }
 
@@ -2724,9 +2780,9 @@ static void serial99100_release_port(struct uart_port *port)
 {
 	struct uart_99100_port *up = &serial99100_ports[port->line];
 	DEBUG("In %s---------------------------------------START\n",__FUNCTION__);
-	
+
 	iounmap(up->port.membase);
-	
+
 	DEBUG("In %s---------------------------------------END\n",__FUNCTION__);
 }
 
@@ -2751,10 +2807,10 @@ static int serial99100_request_port(struct uart_port *port)
 		ret = -EBUSY;
 		goto release;
 	}
-	
+
 	DEBUG("In %s---------------------------------------END\n",__FUNCTION__);
 	return ret;
-	
+
 release:
 #if defined(__x86_64__) || defined(__amd64__)
 	release_region(up->port.iobase,size);
@@ -2775,13 +2831,13 @@ static void serial99100_getCustomModeFromEeprom(struct uart_99100_port *port)
 	unsigned short sum, i;
 	unsigned char index;
 	u8 *tmp = (u8*) &CusEEbuffer;
-	
-	
+
+
 	DEBUG("AX99100: serial99100_getCustomModeFromEeprom #C\n");
-	
+
 	index = 0x28; 	//Device I2C address, we should have a way to determine address
 	offset = 0x60;
-	
+
 	if(!port->bar5membase)
 	{
 		DEBUG("AX99100: GPIO/EEPROM base address not found\n");
@@ -2792,11 +2848,11 @@ static void serial99100_getCustomModeFromEeprom(struct uart_99100_port *port)
 		DEBUG("REG_I2CSCLCR %08X\n", readl(port->bar5membase + REG_I2CSCLCR));
 		DEBUG("REG_I2CBFTR %08X\n", readl(port->bar5membase + REG_I2CBFTR));
 	}
-	
 
-	for (i = 0; i < CUSTOM_EEPROM_LEN; i++) 
+
+	for (i = 0; i < CUSTOM_EEPROM_LEN; i++)
 	{
-		unsigned long start;			
+		unsigned long start;
 #if EEPROM8BIT
 		writeValue = ((index << 25) | (offset << 8)) & (~(1 << 24)); //8bits
 #else
@@ -2806,7 +2862,7 @@ static void serial99100_getCustomModeFromEeprom(struct uart_99100_port *port)
 		start = jiffies;
 		do {
 			writel(writeValue, port->bar5membase + REG_I2CCR);
-			
+
 			if (time_after(jiffies, start + HZ / 100)) {
 				DEBUG("AX99100: I2CSCLCR_CHECK error %08X\n",
 					readl(port->bar5membase + REG_I2CSCLCR));
@@ -2816,10 +2872,10 @@ static void serial99100_getCustomModeFromEeprom(struct uart_99100_port *port)
 		} while(readl(port->bar5membase + REG_I2CSCLCR) & I2CSCLCR_CHECK);
 
 		*(tmp + i) = (u8)(readl(port->bar5membase + REG_I2CCR) & 0xFF);
-		
+
 		DEBUG("AX99100: eBuffer[%d]:%02X\n", i, *(tmp + i));
 		offset++;
-		
+
 		writeValue = 0x0;
 	}
 	if(CusEEbuffer.cus_mod == 0xFFFF) {
@@ -2844,7 +2900,7 @@ static void serial99100_getCustomModeFromEeprom(struct uart_99100_port *port)
 	}
 	if (sum >> 8)
 		sum = ((sum >> 8) & 0x00FF) + (sum & 0x00FF);
-		
+
 	if (sum != 0x79)
 	{
 		DEBUG("AX99100: incorrect checksum\n");
@@ -2863,8 +2919,8 @@ void serial99100_serialSettingGPIO(struct uart_99100_port *up)
 	GpioSetValueGroup1 = ((SetGpioValue & 2) >> 1) | ((SetGpioValue & 8) >> 2);
 	GpioSetValueGroup2 = ((SetGpioValue & 0x10) >> 3) | ((SetGpioValue & 0x40) >> 6);
 	GpioSetValueGroup3 = ((SetGpioValue & 0x20) >> 4) | ((SetGpioValue & 0x80) >> 7);
-    
-	if (!up->oriDTR) {   
+
+	if (!up->oriDTR) {
 		TtempValue = 0;
 		INIT_DBG(KERN_ERR "ASUS 485 Mode\n");
 
@@ -2872,7 +2928,7 @@ void serial99100_serialSettingGPIO(struct uart_99100_port *up)
             		TtempValue = 2;
 			GpioSetValueGroup0 = 0x0;
 			GpioSetValueGroup2 = 0x0 | TtempValue;
-		    
+
 		} else if (up->function_number == 3) {
 			TtempValue = 2;
 			GpioSetValueGroup1 = 0x0;
@@ -2890,7 +2946,7 @@ void serial99100_serialSettingGPIO(struct uart_99100_port *up)
 		writel(lSetGpioValue, up->bar5membase + REG_GPIOPIN);      //Set Value
 		SetGpioValue = lSetGpioValue;
 		writel((unsigned long)0x04, up->port.membase + SP_GPIO_ENABLE_REG); //Enable
-		
+
 		if (up->oriCTS == 1) {
 			//RS485_HALF_DUPLEX
 			writel((unsigned long)0x24, up->port.membase + SP_GPIO_ENABLE_REG);
@@ -2905,7 +2961,7 @@ void serial99100_serialSettingGPIO(struct uart_99100_port *up)
 
 		INIT_DBG(KERN_ERR "CtsInitValue = 0x%x.\r\n", up->oriCTS);
 
-		
+
 
 	} else {
 		INIT_DBG(KERN_ERR "ASUS 232 Mode\n");
@@ -2932,7 +2988,7 @@ void serial99100_serialSettingGPIO(struct uart_99100_port *up)
 		writel((unsigned long)(0xFFFF00), up->bar5membase + REG_GPIODIR);
 		writel(lSetGpioValue, up->bar5membase + REG_GPIOPIN);
 		SetGpioValue = lSetGpioValue;
-	}               
+	}
 }
 
 static int serial99100_ioctl(struct uart_port *port, unsigned int cmd, unsigned long arg)
@@ -2963,9 +3019,9 @@ static int serial99100_ioctl(struct uart_port *port, unsigned int cmd, unsigned 
 		__put_user(up->ax99100_port_mode, p);
 		break;
         case IOCTL_SET_PARAMETER:
-		up->baud_base_clock = (arg >> 20) & 0xFF;		
-		up->custom_dlm = (arg >> 12) & 0xFF;		
-		up->custom_dll = (arg >> 4) & 0xFF;				
+		up->baud_base_clock = (arg >> 20) & 0xFF;
+		up->custom_dlm = (arg >> 12) & 0xFF;
+		up->custom_dll = (arg >> 4) & 0xFF;
 		break;
 	case IOCTL_SET_SAMPLING:
 		up->custom_sampling_clock = (arg >> 0);
@@ -2984,7 +3040,7 @@ static int serial99100_ioctl(struct uart_port *port, unsigned int cmd, unsigned 
 	case IOCTL_GPIO_OUTPUT:
 		gpio_output_99100 = arg & 0xFF;
 		writel(gpio_output_99100, up->bar5membase + 0x3C0);
-		break;	 
+		break;
 	case IOCTL_GET_EDS_EOES: /* 2016/08/02 For ext_clk */
 		eds = readl(up->bar5membase + EDS_REG) & 0x0F000000;
 		__put_user(eds, p);
@@ -2994,7 +3050,7 @@ static int serial99100_ioctl(struct uart_port *port, unsigned int cmd, unsigned 
 			return -ENOIOCTLCMD;
 		serial_out(up, UART_SCR, (start_value & 0x01));
 		break;
-	case IOCTL_SET_SLAVE_MODE: /* 9-bit mode */		
+	case IOCTL_SET_SLAVE_MODE: /* 9-bit mode */
 		if(copy_from_user(&slave, p, sizeof(slave)))
 			return -ENOIOCTLCMD;
 		if (slave.slave_mode >= MODE_9BIT_DISABLE &&
@@ -3005,12 +3061,12 @@ static int serial99100_ioctl(struct uart_port *port, unsigned int cmd, unsigned 
 			    up->mode_9bit == MODE_9BIT_SLAVE_SW ||
 			    up->mode_9bit == MODE_9BIT_DATA) {
 				/* Enable 9 bit */
-				serial_icr_write(up, UART_NMR , (NMR_NBE | NMR_NBIE));	
-				
+				serial_icr_write(up, UART_NMR , (NMR_NBE | NMR_NBIE));
+
 				val=readl(up->port.membase + SP_SETTING_REG0);
 				val &= 0xDFFFFFFF;
 				val |= 0x20000000;
-				writel(val, up->port.membase + SP_SETTING_REG0);			
+				writel(val, up->port.membase + SP_SETTING_REG0);
 			} else if (up->mode_9bit == MODE_9BIT_SLAVE_HW) {
 				/* Enable 9 bit & addesss mode */
 				serial_icr_write(up, UART_NMR , (NMR_NBE | NMR_NBIE | NMR_AME));
@@ -3022,7 +3078,7 @@ static int serial99100_ioctl(struct uart_port *port, unsigned int cmd, unsigned 
 
                 efr = serial_efrs_read(up, UART_EFR);
                 serial_efrs_write(up, UART_XOFF2, 0xff, up->nodeID_9bit);
-                serial_efrs_write(up, UART_EFR, 0xff, efr);                
+                serial_efrs_write(up, UART_EFR, 0xff, efr);
 			} else {
 				/* Disable 9 bit */
 				serial_icr_write(up, UART_NMR , 0);
@@ -3030,10 +3086,10 @@ static int serial99100_ioctl(struct uart_port *port, unsigned int cmd, unsigned 
 				up->nodeID_9bit = 0;
 			}
 		}
-		
+
 		break;
 	default:
-		return -ENOIOCTLCMD;	
+		return -ENOIOCTLCMD;
 	}
 
 	return 0;
@@ -3104,10 +3160,10 @@ static int transmit_chars_dma_done(struct uart_99100_port * up);
 static void serial99100_dma_rx_tasklet (unsigned long param)
 {
 	struct uart_99100_port *up = (struct uart_99100_port *) param;
-	
+
 	u8 iir = serial_in(up, UART_IIR);
 	unsigned long flags;
-	
+
 #if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,26))
 	struct tty_struct *tty=up->port.info->tty;
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
@@ -3117,7 +3173,7 @@ static void serial99100_dma_rx_tasklet (unsigned long param)
 #endif
 	/* Avoid reentry rx dma process while back to back partial done interrupt coming */
 	spin_lock_irqsave(&(up->lock_99100_rxdma), flags);
-	
+
 	receive_chars_dma_done(up,up->k_gir);
 
 	if (!(iir & UART_IIR_NO_INT)) {
@@ -3141,9 +3197,9 @@ static void serial99100_dma_rx_tasklet (unsigned long param)
 			} else if (up->k_lsr & UART_LSR_OE) {
 				up->port.icount.overrun++;
 						//Mask off conditions which should be ignored.
-				up->k_lsr &= up->port.read_status_mask;		
+				up->k_lsr &= up->port.read_status_mask;
 			}
-		}	
+		}
 		if (up->k_lsr & ~up->port.ignore_status_mask & UART_LSR_OE)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0)
 			tty_insert_flip_char(tty->port, 0, TTY_OVERRUN);
@@ -3152,7 +3208,7 @@ static void serial99100_dma_rx_tasklet (unsigned long param)
 #endif
 	}
 serial99100_dma_rx_tasklet_exit:
-	spin_unlock_irqrestore(&(up->lock_99100_rxdma), flags);	
+	spin_unlock_irqrestore(&(up->lock_99100_rxdma), flags);
 }
 
 static void serial99100_dma_tx_tasklet (unsigned long param)
@@ -3195,7 +3251,7 @@ int serial99100_find_match_or_unused(struct uart_port *port)
 		if (serial99100_ports[i].port.iobase == 0){
 			return i;
 			}
-	}	
+	}
 #endif
 
 
@@ -3206,7 +3262,7 @@ int serial99100_find_match_or_unused(struct uart_port *port)
 			// printk("In %s counter=%d-----line %d",__FUNCTION__,counter,__LINE__);
 
 			}
-	}	
+	}
 #endif
 	/*
 	 * That also failed.  Last resort is to find any entry which
@@ -3215,8 +3271,8 @@ int serial99100_find_match_or_unused(struct uart_port *port)
 	for (i = 0; i < UART99100_NR; i++){
 		if (serial99100_ports[i].port.type == PORT_UNKNOWN){
 			return i;
-			}	
-	}		
+			}
+	}
 	return -1;
 }
 //uint counter1=0;
@@ -3225,7 +3281,7 @@ static void serial99100_getCustomModeFromEeprom(struct uart_99100_port *port);
 
 int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 {
-	// printk("In %s counter1=%d-----line %d",__FUNCTION__,++counter1,__LINE__);	
+	// printk("In %s counter1=%d-----line %d",__FUNCTION__,++counter1,__LINE__);
 	unsigned long base, len;
 	int index,ret = -ENOSPC, i = 0;
 	// printk("In %s uartclk=%d-----line %d",__FUNCTION__,port->uartclk,__LINE__);
@@ -3303,10 +3359,10 @@ int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 
 			// Setup the GPIO = out to control 2872
 			if (serial99100_ports[index].function_number == 0) {
-				writel(readl(serial99100_ports[index].bar5membase + 0x3C4) & 0xFFFFFFC7, 
+				writel(readl(serial99100_ports[index].bar5membase + 0x3C4) & 0xFFFFFFC7,
 					serial99100_ports[index].bar5membase + 0x3C4);
 			} else if (serial99100_ports[index].function_number == 2) {
-				writel(readl(serial99100_ports[index].bar5membase + 0x3C4) & 0xFFFFFFF8, 
+				writel(readl(serial99100_ports[index].bar5membase + 0x3C4) & 0xFFFFFFF8,
 					serial99100_ports[index].bar5membase + 0x3C4);
 			}
 			INIT_DBG(KERN_ERR"   0x3C4 = 0x%x\n", readl(serial99100_ports[index].bar5membase + 0x3C4));
@@ -3333,8 +3389,8 @@ int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 			uart_99100_contxts[index].rx_dma_en = 0;
 			serial99100_ports[index].mode_9bit = uart_99100_contxts[index].mode_9bit;
 			serial99100_ports[index].nodeID_9bit = uart_99100_contxts[index].nodeID_9bit;
-		}	
-		
+		}
+
 		if (uart_99100_contxts[index].tx_dma_en == 1) {
 			serial99100_ports[index].dma_tx=1;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5,15,0)
@@ -3363,7 +3419,7 @@ int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 			serial99100_ports[index].dma_tx_buf_v=NULL;
 			serial99100_ports[index].dma_tx_buf_v_start=NULL;
 		}
-		
+
 		if (uart_99100_contxts[index].rx_dma_en == 1) {
 			serial99100_ports[index].dma_rx=1;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5,15,0)
@@ -3371,17 +3427,17 @@ int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 				(char *)pci_alloc_consistent(dev,DMA_RX_BUFFER_SZ,&serial99100_ports[index].dma_rx_buf_p);
 #else
 			serial99100_ports[index].dma_rx_buf_v =
-				(char *)dma_alloc_coherent(&dev->dev,DMA_RX_BUFFER_SZ,&serial99100_ports[index].dma_rx_buf_p, GFP_ATOMIC);		
-#endif	
-			memset(serial99100_ports[index].dma_rx_buf_v,0,DMA_RX_BUFFER_SZ);			
-			serial99100_ports[index].part_done_recv_cnt=0;	
+				(char *)dma_alloc_coherent(&dev->dev,DMA_RX_BUFFER_SZ,&serial99100_ports[index].dma_rx_buf_p, GFP_ATOMIC);
+#endif
+			memset(serial99100_ports[index].dma_rx_buf_v,0,DMA_RX_BUFFER_SZ);
+			serial99100_ports[index].part_done_recv_cnt=0;
 			serial99100_ports[index].rx_dma_done_cnt=0;
 			DEBUG("dma_rx_buf_v=0x%x\n dma_rx_buf_p=0x%x\n",(unsigned int)serial99100_ports[index].dma_rx_buf_v,
 				(unsigned int)serial99100_ports[index].dma_rx_buf_p);
 		} else {
 			serial99100_ports[index].dma_rx=0;
 			serial99100_ports[index].dma_rx_buf_v=NULL;
-		}		
+		}
 
 		serial99100_ports[index].uart_mode = uart_99100_contxts[index].uart_mode;
 		serial99100_ports[index].flow_control = uart_99100_contxts[index].en_flow_control;
@@ -3409,7 +3465,7 @@ int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 			serial99100_ports[index].custom_dlm		= CusEEbuffer.pt_setting[i].dlm;
 			serial99100_ports[index].custom_sampling_clock =
 					(!CusEEbuffer.pt_setting[i].sample_rate ? 4 : CusEEbuffer.pt_setting[i].sample_rate);
-			serial99100_ports[index].custom_dll = (!CusEEbuffer.pt_setting[i].dll ? 1 : CusEEbuffer.pt_setting[i].dll); 
+			serial99100_ports[index].custom_dll = (!CusEEbuffer.pt_setting[i].dll ? 1 : CusEEbuffer.pt_setting[i].dll);
 
 			switch (serial99100_ports[index].baud_base_clock) {
 				case CLK_125M:
@@ -3428,44 +3484,44 @@ int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 
 			serial99100_ports[index].custom_baud = uartclk / (serial99100_ports[index].custom_sampling_clock *
 					(serial99100_ports[index].custom_dlm * 256 + serial99100_ports[index].custom_dll));
-			
+
 		}
 
 		if ((CusEEbuffer.cus_mod == CUS_ASUS) && (serial99100_ports[index].function_number > 1)) {
 			serial99100_ports[index].oriDTR = (readl(serial99100_ports[index].bar5membase + EDE_REG) >> 24) & 0xF;
 			serial99100_ports[index].oriDTR >>= serial99100_ports[index].function_number;
 			serial99100_ports[index].oriDTR &= 1;
-			writel((unsigned long)0x04, serial99100_ports[index].port.membase + SP_GPIO_ENABLE_REG); //Enable	
+			writel((unsigned long)0x04, serial99100_ports[index].port.membase + SP_GPIO_ENABLE_REG); //Enable
 			serial99100_ports[index].oriCTS = (readl(serial99100_ports[index].port.membase + SP_GPIO_INPUT_REG) >> 2) & 1;
 			serial99100_serialSettingGPIO(&serial99100_ports[index]);
 			INIT_DBG(KERN_ERR "function %d oriDTR %d oriCTS %d\n", serial99100_ports[index].function_number,
 					 serial99100_ports[index].oriDTR, serial99100_ports[index].oriCTS);
 		}
-		
+
 		if (uart_99100_contxts[index].uart_mode == AX99100_RS485_FULL_DUPLEX ||
   			uart_99100_contxts[index].uart_mode == AX99100_RS485_HALF_DUPLEX ||
 			uart_99100_contxts[index].uart_mode == AX99100_RS485_HALF_DUPLEX_ECHO ||
 			uart_99100_contxts[index].uart_mode == AX99100_RS422_MODE ||
 			uart_99100_contxts[index].uart_mode == AX99100_IRDA_MODE) {
-			
+
 			serial99100_ports[index].port.type = PORT_ENHANCED;
 			serial99100_ports[index].rxfifotrigger = uart_99100_contxts[index].rxfifotrigger;
-			serial99100_ports[index].txfifotrigger = uart_99100_contxts[index].txfifotrigger;			
+			serial99100_ports[index].txfifotrigger = uart_99100_contxts[index].txfifotrigger;
 		}
-		
+
 		if (serial99100_ports[index].flow_control && (serial99100_ports[index].uart_mode == AX99100_RS232_MODE)) {
-			if (uart_99100_contxts[index].flow_ctrl_type == AX99100_DTR_DSR_HW_FLOWCONTROL || 
-				uart_99100_contxts[index].flow_ctrl_type == AX99100_XON_XOFF_HW_FLOWCONTROL || 
+			if (uart_99100_contxts[index].flow_ctrl_type == AX99100_DTR_DSR_HW_FLOWCONTROL ||
+				uart_99100_contxts[index].flow_ctrl_type == AX99100_XON_XOFF_HW_FLOWCONTROL ||
 				uart_99100_contxts[index].flow_ctrl_type == AX99100_RTS_CTS_HW_FLOWCONTROL) {
 				serial99100_ports[index].port.type = PORT_ENHANCED;
 				serial99100_ports[index].rxfifotrigger = uart_99100_contxts[index].rxfifotrigger;
-				serial99100_ports[index].txfifotrigger = uart_99100_contxts[index].txfifotrigger;		
+				serial99100_ports[index].txfifotrigger = uart_99100_contxts[index].txfifotrigger;
 			}
 		}
 
 		if (serial99100_ports[index].port.type == PORT_ENHANCED) {
 			serial99100_ports[index].rxfifotrigger = uart_99100_contxts[index].rxfifotrigger;
-			serial99100_ports[index].txfifotrigger = uart_99100_contxts[index].txfifotrigger;		
+			serial99100_ports[index].txfifotrigger = uart_99100_contxts[index].txfifotrigger;
 		}
 	}
 	// printk("In %s counter1=%d-----line %d",__FUNCTION__,counter1,__LINE__);
@@ -3476,7 +3532,7 @@ int serial99100_register_port(struct uart_port *port,struct pci_dev *dev)
 
 
 static struct pci_device_id serial99100_pci_tbl[] = {
-	//{PCI_VENDOR_ID_NETMOS, PCI_ANY_ID, PCI_SUBDEV_ID_AX99100, PCI_SUBVEN_ID_AX99100, 0, 0, 0},	
+	//{PCI_VENDOR_ID_NETMOS, PCI_ANY_ID, PCI_SUBDEV_ID_AX99100, PCI_SUBVEN_ID_AX99100, 0, 0, 0},
 	{0x125B, 0x9100, PCI_SUBDEV_ID_AX99100, PCI_SUBVEN_ID_AX99100_SP, 0, 0, 0},
 	{0, },
 };
@@ -3495,8 +3551,8 @@ static void __devexit serial99100_remove_one(struct pci_dev *dev)
 	if  (dev->subsystem_device != PCI_SUBVEN_ID_AX99100_SP) {
 		dev_err(&dev->dev, "Not AX99100 SP device when remove!\n");
 		return;
-	} 
-	
+	}
+
 	base = pci_resource_start(dev, FL_BASE1);
 
 	for (i = 0; i < UART99100_NR; i++){
@@ -3511,24 +3567,24 @@ static void __devexit serial99100_remove_one(struct pci_dev *dev)
 		//Free the IRQ
 		//free_irq(uart->port.irq,&serial99100_ports[i]);
 		free_irq(dev->irq,&serial99100_ports[i]);
-		
-		
-#if INT_TYPE	// 0: using legacy interrupt	
-		// 1: using msi interrupt	
-		//printk("In %s -----line %d\n",__FUNCTION__,__LINE__);	
+
+
+#if INT_TYPE	// 0: using legacy interrupt
+		// 1: using msi interrupt
+		//printk("In %s -----line %d\n",__FUNCTION__,__LINE__);
 		pci_disable_msi(dev);
 		//printk("In %s -----line %d\n",__FUNCTION__,__LINE__);
-#endif		
+#endif
 
 		DEBUG("value at address 3FC is %x\n",readl(uart->port.membase + 0x3FC));
 		writel(1,uart->port.membase + 0x3FC);
 		DEBUG("value at address 3FC after configuring is %x\n",readl(uart->port.membase + 0x3FC));
-	
+
 		down(&serial99100_sem);
 		uart_remove_one_port(&starex_serial_driver, &uart->port);
-		uart->port.dev = NULL;		
+		uart->port.dev = NULL;
 		up(&serial99100_sem);
-		
+
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(5,15,0)
 		pci_free_consistent(dev,DMA_TX_BUFFER_SZ,uart->dma_tx_buf_v,uart->dma_tx_buf_p);
@@ -3538,7 +3594,7 @@ static void __devexit serial99100_remove_one(struct pci_dev *dev)
 		dma_free_coherent(&dev->dev,DMA_TX_BUFFER_SZ,uart->dma_tx_buf_v,uart->dma_tx_buf_p);
 		dma_free_coherent(&dev->dev,DMA_TX_BUFFER_SZ,uart->dma_tx_buf_v_start,uart->dma_tx_buf_p_start);
 		dma_free_coherent(&dev->dev,DMA_RX_BUFFER_SZ,uart->dma_rx_buf_v,uart->dma_rx_buf_p);
-#endif		
+#endif
 		pci_disable_device(dev);
 
 		//Initialise the uart_99100_port arrays port specific element to the default state
@@ -3561,15 +3617,15 @@ static int __devinit serial99100_probe(struct pci_dev *dev,
 	int retval;
 	u8 data;
 	ports_count++;
-#if INT_TYPE	// 0: using legacy interrupt	
+#if INT_TYPE	// 0: using legacy interrupt
 		// 1: using msi interrupt
-	int ret;	
-#endif	
+	int ret;
+#endif
 	DEBUG("In %s---------------------------------------START\n",__FUNCTION__);
 	DEBUG("In %s -----line %d\n", __FUNCTION__ ,__LINE__);
 	retval = pci_enable_device(dev);
 	//printk("In %s retval=%d-----line %d\n",__FUNCTION__,retval,__LINE__);
-	
+
 	if (retval) {
 		dev_err(&dev->dev, "Device enable FAILED, line %d\n",__LINE__);
 		return retval;
@@ -3597,10 +3653,10 @@ static int __devinit serial99100_probe(struct pci_dev *dev,
 		retval = -ENOMEM;
 		goto disable;
 	}
-	
-	pci_set_master(dev);	
+
+	pci_set_master(dev);
 /*
-	retval = pci_set_master(dev);	
+	retval = pci_set_master(dev);
 	if (retval) {
 		dev_err(&dev->dev, "Device enable FAILED\n");
 		return retval;
@@ -3615,12 +3671,12 @@ static int __devinit serial99100_probe(struct pci_dev *dev,
 	serial_port.uartclk = DEFAULT99100_BAUD * 16;
 	serial_port.irq = dev->irq;
 	serial_port.dev = &dev->dev;
-	
+
 	len =  pci_resource_len(dev, FL_BASE1);
 	base = pci_resource_start(dev, FL_BASE1);
 	serial_port.mapbase = base;
 	serial_port.membase = ioremap(base,len);
-	
+
 
 	DEBUG("membase=0x%x\n mapbase=0x%x\n",(unsigned int)serial_port.membase,(unsigned int)serial_port.mapbase);
 	DEBUG("value at address 3FC is %x\n",readl(serial_port.membase + 0x3FC));
@@ -3638,27 +3694,27 @@ static int __devinit serial99100_probe(struct pci_dev *dev,
 	//printk("In %s retval=%d-----line %d\n",__FUNCTION__,retval,__LINE__);
 	if (retval < 0){
 		DEBUG(KERN_WARNING "Couldn't register serial port %s, retval=%d: \n", pci_name(dev),retval);
-		goto disable;	
-	}	
+		goto disable;
+	}
 
-#if INT_TYPE	// 0: using legacy interrupt	
+#if INT_TYPE	// 0: using legacy interrupt
 		// 1: using msi interrupt
 	//printk("In %s pci_msi_enabled=%d-----line %d\n",__FUNCTION__,pci_msi_enabled(),__LINE__);
 	if (pci_msi_enabled()){
 		ret = pci_enable_msi(dev);
-		//printk("In %s retval=%d-----line %d\n",__FUNCTION__,ret,__LINE__);		
+		//printk("In %s retval=%d-----line %d\n",__FUNCTION__,ret,__LINE__);
 		if (ret) {
 			dev_err(&dev->dev, "MSI enable FAILED, line %d\n",__LINE__);
 			return ret;
-		}		
+		}
 	}else{
 		printk("In %s pci_msi_enabled() retval=%d-----line %d\n",__FUNCTION__,ret,__LINE__);
-	}	
-#endif	
+	}
+#endif
 
 //Register an ISR
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
-	if ((retval = request_irq(dev->irq, serial99100_interrupt,SA_SHIRQ,"AX99100x",&serial99100_ports[retval]))) 
+	if ((retval = request_irq(dev->irq, serial99100_interrupt,SA_SHIRQ,"AX99100x",&serial99100_ports[retval])))
 		goto disable;
 #else
 	if ((retval = request_irq(dev->irq, serial99100_interrupt,IRQF_SHARED,"AX99100x",&serial99100_ports[retval]))) {
@@ -3677,8 +3733,8 @@ static int __devinit serial99100_probe(struct pci_dev *dev,
 	}else{
 		printk(version);
 	}
-	return 0;	
-	 
+	return 0;
+
 disable:
 	return retval;
 }
@@ -3803,7 +3859,7 @@ static int serial99100_resume(struct pci_dev *dev)
 	return 0;
 };
 
-	
+
 static struct pci_driver starex_pci_driver = {
 	.name		= "AX99100x",
 	.probe		= serial99100_probe,
@@ -3824,23 +3880,23 @@ static int __init serial99100_init(void)
 	int ret;
 
 	DEBUG("In %s---------------------------------------START\n",__FUNCTION__);
-	
-	
+
+
 
 	serial99100_init_ports();
-	
+
 	ret = uart_register_driver(&starex_serial_driver);
 	if (ret){
 		DEBUG("In %s uart_register_driver FAILED\n",__FUNCTION__);
 		return ret;
-	}		
+	}
 	#if FUNC_SELECT && (defined(__x86_64__) || defined(__amd64__))
 	ret = spi99100_init();
 	if (ret < 0){
 		DEBUG("In %s spi_register_driver FAILED\n",__FUNCTION__);
 		uart_unregister_driver(&starex_serial_driver);
 	}
-	#endif		
+	#endif
 
 
 	ret = pci_register_driver(&starex_pci_driver);
@@ -3848,7 +3904,7 @@ static int __init serial99100_init(void)
 		DEBUG("In %s pci_register_driver FAILED\n",__FUNCTION__);
 		uart_unregister_driver(&starex_serial_driver);
 	}
-	
+
 	DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
 	return ret;
 }
@@ -3860,10 +3916,10 @@ static void __exit serial99100_exit(void)
 	pci_unregister_driver(&starex_pci_driver);
 	#if FUNC_SELECT && (defined(__x86_64__) || defined(__amd64__))
 	spi99100_exit();
-	#endif	
-	
+	#endif
+
 	uart_unregister_driver(&starex_serial_driver);
-	DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);	
+	DEBUG("In %s ---------------------------------------END\n",__FUNCTION__);
 }
 
 module_init(serial99100_init);
