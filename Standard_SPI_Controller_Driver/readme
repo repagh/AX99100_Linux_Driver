@@ -1,0 +1,10 @@
+
+Steps for setting SPI : from file:spi-ax99100.h
+---------------------------------
+#define SPI_REG_BAR	0 
+    //0:Bar0, 1:Bar1
+
+#define SPI_FLASH_DEV 0 
+    //0:SPI controller only 1: attached a kernel supported spi-nor flash device by default.
+
+#define CONFIG_SPI_AX99100_I2C 0    // 0:I2C disable    1: I2C enable
